@@ -1,0 +1,27 @@
+{
+    "name": "Fast Training - High SPS",
+    "description": "Optimized for maximum training speed",
+    "config": {
+        "numGames": 256,
+        "tickSkip": 12,
+        "tsPerItr": 50000,
+        "batchSize": 50000,
+        "miniBatchSize": 100000,
+        "epochs": 1,
+        "policyLR": 2e-4,
+        "criticLR": 2e-4,
+        "entropyScale": 0.04,
+        "gaeGamma": 0.99,
+        "sendMetrics": false,
+        "renderMode": false,
+        "sharedHead": {
+            "layerSizes": [256, 256]
+        },
+        "policy": {
+            "layerSizes": [256, 256, 256]
+        },
+        "critic": {
+            "layerSizes": [256, 256, 256]
+        }
+    }
+}

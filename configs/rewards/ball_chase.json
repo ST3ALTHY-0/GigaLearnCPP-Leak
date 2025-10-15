@@ -1,0 +1,27 @@
+{
+    "name": "Basic Ball Chase",
+    "description": "Simple rewards for learning basic ball interaction",
+    "rewards": [
+        {
+            "type": "VelocityPlayerToBallReward",
+            "weight": 5.0,
+            "zeroSum": false
+        },
+        {
+            "type": "FaceBallReward", 
+            "weight": 1.0,
+            "zeroSum": false
+        },
+        {
+            "type": "TouchBallReward",
+            "weight": 10.0,
+            "zeroSum": false
+        },
+        {
+            "type": "GoalReward",
+            "weight": 100.0,
+            "zeroSum": true,
+            "teamSpirit": 1.0
+        }
+    ]
+}

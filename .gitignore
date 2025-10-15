@@ -45,6 +45,8 @@ out/
 *.filters
 *.user
 CMakeSettings.json
+.vscode/
+*.settings.json
 
 # Anything starting with three underscores
 ___*
@@ -59,3 +61,8 @@ libtorch
 
 /checkpoints
 /wandb
+
+# BackupCheckpoints
+backupCheckpoint
+
+#

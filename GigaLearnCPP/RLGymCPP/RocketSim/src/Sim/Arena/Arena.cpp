@@ -1017,6 +1017,8 @@ void Arena::_SetupArenaCollisionShapes() {
 	bool isHoops = gameMode == GameMode::HOOPS;
 
 	auto collisionMeshes = RocketSim::GetArenaCollisionShapes(gameMode);
+	
+	// RS_LOG("DEBUG: Arena::_SetupArenaCollisionShapes() for " << GAMEMODE_STRS[(int)gameMode] << ", found " << collisionMeshes.size() << " meshes");
 
 	if (collisionMeshes.empty()) {
 		RS_ERR_CLOSE(

@@ -1,0 +1,43 @@
+{
+    "name": "Current ExampleMain.cpp Settings",
+    "description": "Exact match of the current active settings in ExampleMain.cpp",
+    "config": {
+        "deviceType": "GPU_CUDA",
+        "tickSkip": 8,
+        "actionDelay": 7,
+        "numGames": 512,
+        "randomSeed": 123456,
+        "ppo": {
+            "tsPerItr": 100000,
+            "batchSize": 100000,
+            "miniBatchSize": 50000,
+            "epochs": 2,
+            "entropyScale": 0.035,
+            "gaeGamma": 0.99,
+            "policyLR": 1.5e-4,
+            "criticLR": 1.5e-4,
+            "sharedHead": {
+                "layerSizes": [512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            },
+            "policy": {
+                "layerSizes": [512, 512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            },
+            "critic": {
+                "layerSizes": [512, 512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            }
+        },
+        "sendMetrics": true,
+        "renderMode": false,
+        "renderTimeScale": 2,
+        "checkpointFolder": "checkpoints"
+    }
+}

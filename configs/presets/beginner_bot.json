@@ -1,0 +1,7 @@
+{
+    "name": "Beginner Bot Training",
+    "description": "Complete setup for training a basic Rocket League bot",
+    "learnerConfig": "debug.json",
+    "rewardConfig": "ball_chase.json",
+    "notes": "Good starting point for new bots. Fast iterations, simple rewards."
+}

@@ -72,8 +72,35 @@ if (MSVC)
 endif (MSVC)
 
 # Make our python files copy over to our build dir
-configure_file("./python_scripts/metric_receiver.py" "../python_scripts/metric_receiver.py" COPY)
-configure_file("./python_scripts/render_receiver.py" "../python_scripts/render_receiver.py" COPY)
+# configure_file("./python_scripts/metric_receiver.py" "../python_scripts/metric_receiver.py" COPY)
+# configure_file("./python_scripts/render_receiver.py" "../python_scripts/render_receiver.py" COPY)
+
+# Copy python scripts into the build folder - needs to go to build/release dir
+configure_file("${PROJECT_SOURCE_DIR}/python_scripts/metric_receiver.py"
+               "${CMAKE_BINARY_DIR}/python_scripts/metric_receiver.py"
+               COPYONLY)
+
+configure_file("${PROJECT_SOURCE_DIR}/python_scripts/render_receiver.py"
+               "${CMAKE_BINARY_DIR}/python_scripts/render_receiver.py"
+               COPYONLY)
+
+# Also copy python scripts to the actual output directory where the executable runs
+add_custom_command(TARGET GigaLearnCPP
+             POST_BUILD
+             COMMAND ${CMAKE_COMMAND} -E make_directory
+             $<TARGET_FILE_DIR:GigaLearnCPP>/python_scripts)
+
+add_custom_command(TARGET GigaLearnCPP
+             POST_BUILD
+             COMMAND ${CMAKE_COMMAND} -E copy_if_different
+             "${PROJECT_SOURCE_DIR}/python_scripts/metric_receiver.py"
+             $<TARGET_FILE_DIR:GigaLearnCPP>/python_scripts/metric_receiver.py)
+
+add_custom_command(TARGET GigaLearnCPP
+             POST_BUILD
+             COMMAND ${CMAKE_COMMAND} -E copy_if_different
+             "${PROJECT_SOURCE_DIR}/python_scripts/render_receiver.py"
+             $<TARGET_FILE_DIR:GigaLearnCPP>/python_scripts/render_receiver.py)
 
 # MSVC sometimes won't link to the libtorch DLLs unless you do this
 # This is also from https://pytorch.org/cppdocs/installing.html#minimal-example

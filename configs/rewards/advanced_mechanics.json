@@ -1,0 +1,71 @@
+{
+    "name": "Advanced Mechanics",
+    "description": "Rewards for advanced skills like dribbling, flicks, and aerials",
+    "rewards": [
+        {
+            "type": "VelocityPlayerToBallReward",
+            "weight": 4.0,
+            "zeroSum": false
+        },
+        {
+            "type": "FaceBallReward",
+            "weight": 0.25,
+            "zeroSum": false
+        },
+        {
+            "type": "StrongTouchReward",
+            "weight": 3.0,
+            "zeroSum": false,
+            "params": {
+                "minSpeedKPH": 20,
+                "maxSpeedKPH": 100
+            }
+        },
+        {
+            "type": "DribbleReward",
+            "weight": 15.0,
+            "zeroSum": false,
+            "params": {
+                "maxDribbleHeight": 200.0,
+                "maxDribbleDistance": 150.0
+            }
+        },
+        {
+            "type": "FlickGoalReward",
+            "weight": 50.0,
+            "zeroSum": false,
+            "params": {
+                "minFlickSpeedKPH": 80.0,
+                "maxTimeToGoal": 3.0
+            }
+        },
+        {
+            "type": "AirReward",
+            "weight": 0.5,
+            "zeroSum": false
+        },
+        {
+            "type": "WavedashReward",
+            "weight": 1.0,
+            "zeroSum": false
+        },
+        {
+            "type": "VelocityBallToGoalReward",
+            "weight": 3.0,
+            "zeroSum": true,
+            "teamSpirit": 1.0
+        },
+        {
+            "type": "GoalReward",
+            "weight": 100.0,
+            "zeroSum": true,
+            "teamSpirit": 0.5
+        },
+        {
+            "type": "SaveReward",
+            "weight": 75.0,
+            "zeroSum": true,
+            "teamSpirit": 0.5
+        }
+    ]
+}

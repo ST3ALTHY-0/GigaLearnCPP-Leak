@@ -1,0 +1,68 @@
+{
+    "name": "Scoring Bot - 100M Steps",
+    "description": "Rewards that will produce a scoring bot in ~100m steps - matches current ExampleMain.cpp",
+    "rewards": [
+        {
+            "type": "AirReward",
+            "weight": 0.25,
+            "zeroSum": false
+        },
+        {
+            "type": "FaceBallReward", 
+            "weight": 0.25,
+            "zeroSum": false
+        },
+        {
+            "type": "VelocityPlayerToBallReward",
+            "weight": 4.0,
+            "zeroSum": false
+        },
+        {
+            "type": "StrongTouchReward",
+            "weight": 60.0,
+            "zeroSum": false,
+            "params": {
+                "minSpeedKPH": 20,
+                "maxSpeedKPH": 100
+            }
+        },
+        {
+            "type": "VelocityBallToGoalReward",
+            "weight": 2.0,
+            "zeroSum": true,
+            "teamSpirit": 1.0
+        },
+        {
+            "type": "PickupBoostReward",
+            "weight": 10.0,
+            "zeroSum": false
+        },
+        {
+            "type": "SaveBoostReward",
+            "weight": 0.2,
+            "zeroSum": false
+        },
+        {
+            "type": "BumpReward",
+            "weight": 20.0,
+            "zeroSum": true,
+            "teamSpirit": 0.5
+        },
+        {
+            "type": "DemoReward",
+            "weight": 80.0,
+            "zeroSum": true,
+            "teamSpirit": 0.5
+        },
+        {
+            "type": "GoalReward",
+            "weight": 150.0,
+            "zeroSum": false
+        },
+        {
+            "type": "ControlledTouchReward",
+            "weight": 0.5,
+            "zeroSum": false
+        }
+    ]
+}

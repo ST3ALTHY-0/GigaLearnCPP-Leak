@@ -1,0 +1,67 @@
+@echo off
+REM ====================================================
+REM GigaLearn2 Build Script
+REM Deletes build folder contents, runs CMake, builds project
+REM ====================================================
+
+REM set to your project build dir
+SET BUILD_DIR=C:\Programming\CPP\GigaLearn2\build
+
+echo Cleaning build directory: %BUILD_DIR%
+
+REM Check if checkpoints exist and ask user
+SET DELETE_CHECKPOINTS=N
+if exist "%BUILD_DIR%\Release\checkpoints" (
+    echo.
+    echo WARNING: Checkpoints folder found at %BUILD_DIR%\Release\checkpoints
+    set /p DELETE_CHECKPOINTS="Delete checkpoint folder? (Y/N): "
+)
+
+REM Remove all files and folders in build dir, skip locked files and optionally preserve Release/checkpoints
+for /D %%d in ("%BUILD_DIR%\*") do (
+    if /I "%%~nd"=="Release" (
+        if /I "%DELETE_CHECKPOINTS%"=="Y" (
+            echo Deleting entire Release folder (including checkpoints)
+            rmdir /s /q "%%d" 2>nul
+        ) else (
+            echo Preserving Release folder (keeping checkpoints and python_scripts)
+            REM Only delete build artifacts, not checkpoints or python_scripts
+            if exist "%%d\*.exe" del /f /q "%%d\*.exe" 2>nul
+            if exist "%%d\*.dll" del /f /q "%%d\*.dll" 2>nul
+            if exist "%%d\*.lib" del /f /q "%%d\*.lib" 2>nul
+            if exist "%%d\*.exp" del /f /q "%%d\*.exp" 2>nul
+        )
+    ) else (
+        echo Deleting folder %%d
+        rmdir /s /q "%%d" 2>nul
+    )
+)
+
+REM Remove any loose files in the build folder (not directories)
+for %%f in ("%BUILD_DIR%\*") do (
+    if not "%%~nxf"=="Release" (
+        echo Deleting file %%f
+        del /f /q "%%f" 2>nul
+    )
+)
+
+REM Ensure build directory exists
+if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
+
+REM Change into build directory
+cd /d "%BUILD_DIR%"
+
+REM Set paths and directories to your own
+echo Running CMake configuration...
+"C:\Program Files\CMake\bin\cmake.exe" .. -G "Visual Studio 17 2022" -A x64 ^
+    -DCMAKE_GENERATOR_TOOLSET="cuda=C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8" ^
+    -DCMAKE_PREFIX_PATH="C:/Programming/CPP/GigaLearn2/libtorch" ^
+    -DPython_EXECUTABLE="C:\Program Files\Python314\python.exe" ^
+    -DPython_INCLUDE_DIR="C:/Program Files/Python314/include" ^
+    -DPython_LIBRARY="C:/Program Files/Python314/libs/python314.lib"
+
+echo Building project...
+"C:\Program Files\CMake\bin\cmake.exe" --build . --config Release
+
+echo Build complete!
+pause

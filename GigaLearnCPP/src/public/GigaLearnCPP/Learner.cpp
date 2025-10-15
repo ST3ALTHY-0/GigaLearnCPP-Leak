@@ -76,7 +76,8 @@ GGL::Learner::Learner(EnvCreateFn envCreateFn, LearnerConfig config, StepCallbac
 
 	if (RocketSim::GetStage() != RocketSimStage::INITIALIZED) {
 		RG_LOG("\tInitializing RocketSim...");
-		RocketSim::Init("collision_meshes", true);
+		// Using absolute path because relative wasn't working
+		RocketSim::Init("C:\\Programming\\CPP\\GigaLearn2\\collision_meshes", false);
 	}
 
 	{
@@ -251,15 +252,27 @@ void GGL::Learner::Load() {
 		RG_ERR_CLOSE("Learner::Load(): Cannot load because config.checkpointLoadFolder is not set");
 
 	RG_LOG("Loading most recent checkpoint in " << config.checkpointFolder << "...");
+	RG_LOG(" > Debug: Checkpoint folder path: " << config.checkpointFolder);
+	RG_LOG(" > Debug: Checkpoint folder exists: " << std::filesystem::exists(config.checkpointFolder));
 
 	int64_t highest = -1;
 	std::set<int64_t> allSavedTimesteps = Utils::FindNumberedDirs(config.checkpointFolder);
-	for (int64_t timesteps : allSavedTimesteps)
+	RG_LOG(" > Debug: Found " << allSavedTimesteps.size() << " numbered directories");
+	
+	for (int64_t timesteps : allSavedTimesteps) {
+		RG_LOG(" > Debug: Found checkpoint at timestep: " << timesteps);
 		highest = RS_MAX(timesteps, highest);
+	}
+	
+	RG_LOG(" > Debug: Highest timestep found: " << highest);
 
 	if (highest != -1) {
 		std::filesystem::path loadFolder = config.checkpointFolder / std::to_string(highest);
 		RG_LOG(" > Loading checkpoint " << loadFolder << "...");
+		RG_LOG(" > Debug: Load folder exists: " << std::filesystem::exists(loadFolder));
+		RG_LOG(" > Debug: Stats file path: " << (loadFolder / STATS_FILE_NAME));
+		RG_LOG(" > Debug: Stats file exists: " << std::filesystem::exists(loadFolder / STATS_FILE_NAME));
+		
 		LoadStats(loadFolder / STATS_FILE_NAME);
 		ppo->LoadFrom(loadFolder);
 		RG_LOG(" > Done.");
@@ -578,8 +591,11 @@ void GGL::Learner::Start() {
 						envStepTime += stepTimer.Elapsed();
 
 						for (float f : envSet->state.obs.data)
-							if (isnan(f) || isinf(f))
+							if (isnan(f) || isinf(f)) //maybe get rid
 								RG_ERR_CLOSE("Obs builder produced a NaN/inf value");
+
+							// if ((step % 1000 == 0) && (isnan(f) || isinf(f)))
+    						// 	RG_ERR_CLOSE("Obs builder produced a NaN/inf value");
 
 						if (!render && obsStat) {
 							// TODO: This samples from old versions too
@@ -588,6 +604,16 @@ void GGL::Learner::Start() {
 								int idx = Math::RandInt(0, envSet->state.numPlayers);
 								obsStat->IncrementRow(&envSet->state.obs.At(idx, 0));
 							}
+
+							/*
+	// Only sample from new policy players, not old versions
+    int numSamples = RS_MAX(newPlayerIndices.size(), config.maxObsSamples);
+    for (int i = 0; i < numSamples; i++) {
+        int sampleIdx = Math::RandInt(0, newPlayerIndices.size());
+        int playerIdx = newPlayerIndices[sampleIdx];
+        obsStat->IncrementRow(&envSet->state.obs.At(playerIdx, 0));
+    }
+	*/
 
 							std::vector<double> mean = obsStat->GetMean();
 							std::vector<double> std = obsStat->GetSTD();

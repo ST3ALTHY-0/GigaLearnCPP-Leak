@@ -19,12 +19,47 @@ EnvCreateResult EnvCreateFunc(int index) {
 	std::vector<WeightedReward> rewards = {
 
 		// Movement
+		// { new AirReward(), .1f },
+		//{ new SpeedReward(), 0.25f },
+		// { new WavedashReward(), 1.f },
+
+
+		// Player-ball
+		// { new ControlledTouchReward(), .10f },
+		// { new FaceBallReward(), 0.2f },
+		// { new VelocityPlayerToBallReward(), 0.2f },
+		// { new VelocityBallToGoalReward(), 1.0f },
+		// { new TouchBallReward(), 0.2f },
+		
+		// // { new DefensiveRotationReward(1000.0f, 0.6f), 6.0f }, // Rewards proper defensive rotation
+		// { new StrongTouchReward(20, 100), .10f },
+
+		// // Ball-goal
+		// { new ZeroSumReward(new ShotOnTargetReward(30.0f, 2.0f), 1), 5.0f }, // Rewards accurate shots on goal
+		// // { new ZeroSumReward(new DirectionalGoalReward(0.5f), 1), 4.0f }, // Encourages goal-center direction, penalizes corners
+
+		// // Boost
+		// { new PickupBoostReward(), 1.0f },
+		// { new SaveBoostReward(), 2.0f },
+
+		// // Game events
+		// { new ZeroSumReward(new BumpReward(), 0.5f), 40 },
+		// { new ZeroSumReward(new DemoReward(), 0.5f), 100 },
+		// { new ZeroSumReward(new GoalReward(), 0.5f), 200 },
+		// { new ZeroSumReward(new SaveReward(), 0.5f), 55 }
+
+		// Movement
 		{ new AirReward(), 0.25f },
+		{ new AerialReward(1.75f), 1.0f }, // Rewards aerial play combining air time + ball height
 
 		// Player-ball
 		{ new FaceBallReward(), 0.25f },
 		{ new VelocityPlayerToBallReward(), 4.f },
 		{ new StrongTouchReward(20, 100), 60 },
+		{ new AerialReward(), 2.f },
+		{ new DribbleReward(1.0f, 5.0f), 1.0f },
+		{ new ShotOnTargetReward(30.0f, 2.0f), 5.0f },
+		// { new ControlledTouchReward(), .25f },
 
 		// Ball-goal
 		{ new ZeroSumReward(new VelocityBallToGoalReward(), 1), 2.0f },
@@ -36,7 +71,9 @@ EnvCreateResult EnvCreateFunc(int index) {
 		// Game events
 		{ new ZeroSumReward(new BumpReward(), 0.5f), 20 },
 		{ new ZeroSumReward(new DemoReward(), 0.5f), 80 },
-		{ new GoalReward(), 150 }
+		{ new GoalReward(), 150 },
+		{ new ZeroSumReward(new SaveReward(), 1.f), 50 }
+
 	};
 
 	std::vector<TerminalCondition*> terminalConditions = {
@@ -95,8 +132,8 @@ void StepCallback(Learner* learner, const std::vector<GameState>& states, Report
 
 int main(int argc, char* argv[]) {
 	// Initialize RocketSim with collision meshes
-	// Change this path to point to your meshes!
-	RocketSim::Init("C:\\Users\\admin\\source\\repos\\RLArenaCollisionDumper\\collision_meshes");
+	// IMPORTANT: Change this path to point to your meshes
+	RocketSim::Init("C:\\Programming\\CPP\\GigaLearn2\\rlbot\\collision_meshes");
 
 	// Make configuration for the learner
 	LearnerConfig cfg = {};
@@ -106,21 +143,21 @@ int main(int argc, char* argv[]) {
 	cfg.tickSkip = 8;
 	cfg.actionDelay = cfg.tickSkip - 1; // Normal value in other RLGym frameworks
 
-	// Play around with this to see what the optimal is for your machine, more games will consume more RAM
-	cfg.numGames = 256;
+	// Play around with this to see what the optimal is for your machine, more games will consume more RAM/CPU
+	cfg.numGames = 712; // Reduced from 512 for less PC load
 
 	// Leave this empty to use a random seed each run
 	// The random seed can have a strong effect on the outcome of a run
-	cfg.randomSeed = 123;
+	cfg.randomSeed = 1234567;
 
-	int tsPerItr = 50'000;
+	int tsPerItr = 100'000; // Reduced from 100k for less PC load
 	cfg.ppo.tsPerItr = tsPerItr;
 	cfg.ppo.batchSize = tsPerItr;
-	cfg.ppo.miniBatchSize = 50'000; // Lower this if too much VRAM is being allocated
+	cfg.ppo.miniBatchSize = 50000; // Matching batch size for simpler processing
 
 	// Using 2 epochs seems pretty optimal when comparing time training to skill
 	// Perhaps 1 or 3 is better for you, test and find out!
-	cfg.ppo.epochs = 1;
+	cfg.ppo.epochs = 2;
 
 	// This scales differently than "ent_coef" in other frameworks
 	// This is the scale for normalized entropy, which means you won't have to change it if you add more actions
@@ -134,9 +171,18 @@ int main(int argc, char* argv[]) {
 	cfg.ppo.policyLR = 1.5e-4;
 	cfg.ppo.criticLR = 1.5e-4;
 
-	cfg.ppo.sharedHead.layerSizes = { 256, 256 };
-	cfg.ppo.policy.layerSizes = { 256, 256, 256 };
-	cfg.ppo.critic.layerSizes = { 256, 256, 256 };
+	//will increase model quality at price of performance, increase if you have a better GPU 
+	//restart training model if changed
+	cfg.ppo.sharedHead.layerSizes = { 1024, 1024, 512};
+	cfg.ppo.policy.layerSizes = { 512, 256};
+	cfg.ppo.critic.layerSizes = {512, 256};
+
+	/*
+	cfg.ppo.sharedHead.layerSizes = { 1024, 1024, 512 };
+	cfg.ppo.policy.layerSizes = { 512, 1024, 512 };
+	cfg.ppo.critic.layerSizes = { 512, 1024, 1024, 512 };
+	*/
+
 
 	auto optim = ModelOptimType::ADAM;
 	cfg.ppo.policy.optimType = optim;
@@ -153,8 +199,14 @@ int main(int argc, char* argv[]) {
 	cfg.ppo.critic.addLayerNorm = addLayerNorm;
 	cfg.ppo.sharedHead.addLayerNorm = addLayerNorm;
 
-	cfg.sendMetrics = true; // Send metrics
-	cfg.renderMode = false; // Don't render
+	cfg.sendMetrics = false; // Send metrics
+	cfg.renderMode = false;
+	cfg.renderTimeScale = 2; //2 = twice as fast
+	
+	// Set checkpoint folder to load/save models
+	cfg.checkpointFolder = "checkpoints";
+	
+	
 
 	// Make the learner with the environment creation function and the config we just made
 	Learner* learner = new Learner(EnvCreateFunc, cfg, StepCallback);

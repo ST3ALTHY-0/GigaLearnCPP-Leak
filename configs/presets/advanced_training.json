@@ -1,0 +1,7 @@
+{
+    "name": "Advanced Mechanics Training",
+    "description": "High-quality training for advanced Rocket League skills",
+    "learnerConfig": "high_quality.json",
+    "rewardConfig": "advanced_mechanics.json",
+    "notes": "For training bots with dribbling, flicks, and aerial skills. Requires more compute but produces higher skill bots."
+}

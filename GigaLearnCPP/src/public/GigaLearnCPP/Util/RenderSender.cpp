@@ -1,6 +1,7 @@
 #include "RenderSender.h"
 
 #include <nlohmann/json.hpp>
+#include <filesystem>
 
 using namespace nlohmann;
 using namespace RLGC;
@@ -8,8 +9,19 @@ using namespace RLGC;
 GGL::RenderSender::RenderSender(float timeScale) : timeScale(timeScale) {
 	RG_LOG("Initializing RenderSender...");
 
+
 	try {
-		RG_LOG("Current dir: " << std::filesystem::current_path());
+		// Add the build directory to Python's sys.path so it can find python_scripts
+		pybind11::module sys = pybind11::module::import("sys");
+		pybind11::list path = sys.attr("path");
+		
+		// Add the current directory to Python path
+		std::filesystem::path currentDir = std::filesystem::current_path();
+		path.append(currentDir.string());
+		
+		RG_LOG("Current dir: " << currentDir);
+		RG_LOG(" > Added to Python path: " << currentDir.string());
+		
 		pyMod = pybind11::module::import("python_scripts.render_receiver");
 	} catch (std::exception& e) {
 		RG_ERR_CLOSE("RenderSender: Failed to import render receiver, exception: " << e.what());

@@ -1,0 +1,43 @@
+{
+    "name": "High quality, Slower Settings",
+    "description": "High quality model, going slower so my PC isn't screaming",
+    "config": {
+        "deviceType": "GPU_CUDA",
+        "tickSkip": 8,
+        "actionDelay": 7,
+        "numGames": 256,
+        "randomSeed": 123456,
+        "ppo": {
+            "tsPerItr": 50000,
+            "batchSize": 50000,
+            "miniBatchSize": 50000,
+            "epochs": 2,
+            "entropyScale": 0.035,
+            "gaeGamma": 0.99,
+            "policyLR": 1.5e-4,
+            "criticLR": 1.5e-4,
+            "sharedHead": {
+                "layerSizes": [512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            },
+            "policy": {
+                "layerSizes": [512, 512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            },
+            "critic": {
+                "layerSizes": [512, 512, 512],
+                "optimType": "ADAM",
+                "activationType": "RELU",
+                "addLayerNorm": true
+            }
+        },
+        "sendMetrics": true,
+        "renderMode": false,
+        "renderTimeScale": 2,
+        "checkpointFolder": "checkpoints"
+    }
+}

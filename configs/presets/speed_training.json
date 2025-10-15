@@ -1,0 +1,7 @@
+{
+    "name": "Speed Training",
+    "description": "Maximum SPS for rapid experimentation",
+    "learnerConfig": "fast_training.json", 
+    "rewardConfig": "competitive.json",
+    "notes": "Optimized for speed. Good for testing reward changes quickly."
+}

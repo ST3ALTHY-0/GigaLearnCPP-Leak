@@ -48,8 +48,15 @@ RocketSimStage RocketSim::GetStage() {
 }
 
 std::vector<btBvhTriangleMeshShape*>& RocketSim::GetArenaCollisionShapes(GameMode gameMode) {
+	// Use function-local statics to avoid static initialization order issues
 	static std::vector<btBvhTriangleMeshShape*> arenaCollisionMeshes;
 	static std::vector<btBvhTriangleMeshShape*> arenaCollisionMeshes_hoops;
+	static bool initialized = false;
+	
+	if (!initialized) {
+		RS_LOG("DEBUG: First call to GetArenaCollisionShapes, initializing static vectors");
+		initialized = true;
+	}
 
 	return (gameMode == GameMode::HOOPS ? arenaCollisionMeshes_hoops : arenaCollisionMeshes);
 }
@@ -78,6 +85,11 @@ void RocketSim::Init(std::filesystem::path collisionMeshesFolder, bool silent) {
 		std::filesystem::path basePath = collisionMeshesFolder;
 		std::filesystem::path soccarMeshesFolder = basePath / GAMEMODE_STRS[(int)gameMode];
 
+		if (!silent) {
+			RS_LOG("DEBUG: Looking for meshes in: " << soccarMeshesFolder.string());
+			RS_LOG("DEBUG: Directory exists: " << (std::filesystem::exists(soccarMeshesFolder) ? "YES" : "NO"));
+		}
+
 		if (!std::filesystem::exists(soccarMeshesFolder))
 			continue;
 
@@ -87,9 +99,20 @@ void RocketSim::Init(std::filesystem::path collisionMeshesFolder, bool silent) {
 		auto dirItr = std::filesystem::directory_iterator(soccarMeshesFolder);
 		for (auto& entry : dirItr) {
 			auto entryPath = entry.path();
+			if (!silent) {
+				RS_LOG("DEBUG: Found file: " << entryPath.string());
+				RS_LOG("DEBUG: Has extension: " << (entryPath.has_extension() ? "YES" : "NO"));
+				if (entryPath.has_extension()) {
+					RS_LOG("DEBUG: Extension is: " << entryPath.extension().string());
+					RS_LOG("DEBUG: Matches .cmf: " << (entryPath.extension() == COLLISION_MESH_FILE_EXTENSION ? "YES" : "NO"));
+				}
+			}
 			if (entryPath.has_extension() && entryPath.extension() == COLLISION_MESH_FILE_EXTENSION) {
 				DataStreamIn streamIn = DataStreamIn(entryPath, false);
 				meshFileMap[gameMode].push_back(streamIn.data);
+				if (!silent) {
+					RS_LOG("DEBUG: Added mesh file to map: " << entryPath.string());
+				}
 			}
 		}
 	}
@@ -169,6 +192,10 @@ void RocketSim::InitFromMem(const std::map<GameMode, std::vector<FileData>>& mes
 				btGenerateInternalEdgeInfo(bvtMesh, infoMap);
 				bvtMesh->setTriangleInfoMap(infoMap);
 				meshes.push_back(bvtMesh);
+				
+				if (!silent) {
+					RS_LOG("DEBUG: Added collision shape, total for " << GAMEMODE_STRS[(int)gameMode] << ": " << meshes.size());
+				}
 
 				idx++;
 			}
@@ -178,6 +205,10 @@ void RocketSim::InitFromMem(const std::map<GameMode, std::vector<FileData>>& mes
 			RS_LOG(MSG_PREFIX << "Finished loading arena collision meshes:");
 			RS_LOG(" > Soccar: " << GetArenaCollisionShapes(GameMode::SOCCAR).size());
 			RS_LOG(" > Hoops: " << GetArenaCollisionShapes(GameMode::HOOPS).size());
+			
+			// Double-check by calling the function again
+			auto& soccarTest = GetArenaCollisionShapes(GameMode::SOCCAR);
+			RS_LOG("DEBUG: Double-check soccar meshes: " << soccarTest.size());
 		}
 
 #ifndef RS_NO_SUSPCOLGRID

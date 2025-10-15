@@ -1,0 +1,27 @@
+{
+    "name": "Debug/Development",
+    "description": "Small scale for testing and debugging",
+    "config": {
+        "numGames": 64,
+        "tickSkip": 8,
+        "tsPerItr": 10000,
+        "batchSize": 10000,
+        "miniBatchSize": 5000,
+        "epochs": 1,
+        "policyLR": 3e-4,
+        "criticLR": 3e-4,
+        "entropyScale": 0.05,
+        "gaeGamma": 0.99,
+        "sendMetrics": true,
+        "renderMode": false,
+        "sharedHead": {
+            "layerSizes": [128, 128]
+        },
+        "policy": {
+            "layerSizes": [128, 128]
+        },
+        "critic": {
+            "layerSizes": [128, 128]
+        }
+    }
+}
