@@ -106,6 +106,7 @@ namespace RLGC {
 		void StepSecondHalf(const IList& actionIndices, bool async);
 		void Sync() { g_ThreadPool.WaitUntilDone(); }
 		void ResetArena(int index);
+		void SoftResetArena(int index);
 		void Reset();
 	};
 }

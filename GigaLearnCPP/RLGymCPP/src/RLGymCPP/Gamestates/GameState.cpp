@@ -109,7 +109,20 @@ void RLGC::GameState::UpdateFromArena(Arena* arena, const std::vector<Action>& a
 
 	// Update goal scoring
 	// If you don't have a GoalScoreCondition then that's not my problem lmao
+	// God damn it, this has become my problem. Damn you Zealanl!!!
 	goalScored = arena->IsBallScored();
 
+	// Update last tick and match-local tick counter. We keep the global arena tick
+	// in `lastTickCount` but also compute `matchTickCount` (ticks since matchStartTick)
+	// so reward functions can choose to use match-local time without replacing the
+	// global tick behavior.
 	lastTickCount = arena->tickCount;
+	if (matchStartTick != 0) {
+		if (arena->tickCount >= (int64_t)matchStartTick)
+			matchTickCount = (uint64_t)(arena->tickCount - (int64_t)matchStartTick);
+		else
+			matchTickCount = 0;
+	} else {
+		matchTickCount = 0;
+	}
 }

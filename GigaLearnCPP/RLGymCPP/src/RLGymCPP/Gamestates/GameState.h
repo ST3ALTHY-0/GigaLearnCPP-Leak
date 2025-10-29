@@ -40,6 +40,21 @@ namespace RLGC {
 		// Last tick count when updated
 		uint64_t lastTickCount = 0;
 
+		// Tick count when the current match started (set on Reset/ kickoffs). Use to compute
+		// per-match elapsed time independent of the global arena tick counter which may
+		// accumulate across multiple goals/rounds.
+		uint64_t matchStartTick = 0;
+
+		// Tick count since the match started (relative tick). This is updated each
+		// UpdateFromArena so rewards can use a match-local tick rate without
+		// replacing or removing the global arena tick counter.
+		uint64_t matchTickCount = 0;
+
+		// Canonical per-match scoreline. Use this instead of encoding scores into
+		// other fields (e.g., ball.angVel). This will be the authoritative place
+		// to store team scores for a match.
+		ScoreLine score;
+
 		void* userInfo = NULL;
 
 		GameState() {
