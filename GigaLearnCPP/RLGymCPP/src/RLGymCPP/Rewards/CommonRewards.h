@@ -1,6 +1,8 @@
 #pragma once
 #include "Reward.h"
 #include "../Math.h"
+#include <cstdio>
+#include <cstdint>
 
 namespace RLGC {
 
@@ -43,7 +45,7 @@ public:
     }
 };
 /*
- # On ground it gets about 0.04 just for touching, as well as some extra for the speed it produces
+a for the speed it produces # On ground it gets about 0.04 just for touching, as well as some extr
                 # Ball is pretty close to z=150 when on top of car, so 1 second of dribbling is 1 reward
                 # Close to 20 in the limit with ball on top, but opponents should learn to challenge way before that
                 avg_height = 0.5 * (car_height + ball_height)
@@ -60,6 +62,22 @@ public:
                                               -player.car_data.up()) > 0.9:
                     player_rewards[i] += self.flip_reset_w
 */
+
+class ProximityToBallReward : public Reward {
+public:
+	// maxDistance defines the distance at which the reward becomes zero.
+	// Reward = 1.0 when player is on the ball, linearly falls to 0.0 at maxDistance.
+	float maxDistance;
+
+	ProximityToBallReward(float maxDistance_ = 6000.0f) : maxDistance(maxDistance_) {}
+
+	virtual float GetReward(const Player& player, const GameState& state, bool /*isFinal*/) override {
+		float dist = (player.pos - state.ball.pos).Length();
+		if (dist >= maxDistance) return 0.0f;
+		float reward = 1.0f - (dist / maxDistance);
+		return RS_CLAMP(reward, 0.0f, 1.0f);
+	}
+};
 
 	class DribbleReward : public Reward {
 	public:
@@ -147,6 +165,85 @@ public:
 			return totalReward;
 		}
 	};
+
+// Rewards hitting the ball higher and further from walls, with an increasing
+// combo multiplier for successive in-air hits by the same player (aerial dribbling).
+class AerialDribbleReward : public Reward {
+public:
+	// weights for height and wall distance components
+	float heightWeight;
+	float wallWeight;
+	// per-additional-touch multiplier (e.g. 0.5 => second touch = 1.5x, third = 2.0x)
+	float comboBonusPerTouch;
+	// maximum multiplier cap
+	float maxComboMultiplier;
+	// lookback window (seconds) to consider previous touches part of the combo
+	float lookbackSeconds;
+
+	AerialDribbleReward(float heightWeight_ = 1.0f, float wallWeight_ = 1.0f, float comboBonusPerTouch_ = 0.5f,
+						float maxComboMultiplier_ = 3.0f, float lookbackSeconds_ = 2.0f)
+		: heightWeight(heightWeight_), wallWeight(wallWeight_), comboBonusPerTouch(comboBonusPerTouch_),
+		  maxComboMultiplier(maxComboMultiplier_), lookbackSeconds(lookbackSeconds_) {}
+
+private:
+	// simple distance to nearest wall (uses field extents from CommonValues)
+	float DistToClosestWall(const Vec& pos) const {
+		float distToSide = RS_MIN(CommonValues::SIDE_WALL_X - fabsf(pos.x), CommonValues::SIDE_WALL_X + fabsf(pos.x));
+		float distToBack = RS_MIN(CommonValues::BACK_WALL_Y - fabsf(pos.y), CommonValues::BACK_WALL_Y + fabsf(pos.y));
+		return RS_MIN(distToSide, distToBack);
+	}
+
+public:
+	virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+		// Only evaluate when the player just touched the ball
+		if (!player.ballTouchedStep)
+			return 0.0f;
+
+		// Height component: average of car and ball height normalized to ceiling
+		float avgHeight = 0.5f * (player.pos.z + state.ball.pos.z);
+		float heightFrac = RS_CLAMP(avgHeight / CommonValues::CEILING_Z, 0.0f, 1.0f);
+
+		// Wall distance factor: farther from walls => closer to 1
+		float wallDist = DistToClosestWall(player.pos);
+		float wallFactor = 1.0f - expf(-wallDist / CommonValues::CAR_MAX_SPEED);
+
+		float base = heightWeight * heightFrac + wallWeight * wallFactor;
+
+		// Count successive prior touches by this player while airborne within lookback window
+		int comboCount = 1; // current touch
+		float tickTime = 1.0f / 120.0f;
+		if (state.lastArena)
+			tickTime = state.lastArena->tickTime;
+		int maxSteps = (int)ceil(lookbackSeconds / tickTime);
+
+		const GameState* gs = &state;
+		for (int s = 0; s < maxSteps && gs->prev; ++s) {
+			gs = gs->prev;
+			// find the player snapshot in this previous state
+			const Player* prevP = nullptr;
+			for (const auto& pp : gs->players) {
+				if (pp.index == player.index) { prevP = &pp; break; }
+			}
+			if (!prevP) continue;
+
+			// Only count prior touches that were airborne (dribble in air)
+			if (prevP->ballTouchedStep && !prevP->isOnGround) {
+				comboCount++;
+			} else if (prevP->ballTouchedStep && prevP->isOnGround) {
+				// Prior touch on ground breaks aerial combo
+				break;
+			}
+		}
+
+		float comboMultiplier = 1.0f + comboBonusPerTouch * (float)(comboCount - 1);
+		if (comboMultiplier > maxComboMultiplier)
+			comboMultiplier = maxComboMultiplier;
+
+		float reward = base * comboMultiplier;
+		// Keep reward in a reasonable range
+		return RS_CLAMP(reward, 0.0f, maxComboMultiplier * (heightWeight + wallWeight));
+	}
+};
 
 	class FlickGoalReward : public Reward {
 	public:
@@ -279,6 +376,69 @@ reward = min(air_time_frac, height_frac)
 		VelocityReward(bool isNegative = false) : isNegative(isNegative) {}
 		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) {
 			return player.vel.Length() / CommonValues::CAR_MAX_SPEED * (1 - 2 * isNegative);
+		}
+	};
+
+	class AlignBallToOpponentGoalReward : public Reward {
+	public:
+		// Maximum lateral offset from the ball->goal line (in UU) where reward falls to zero.
+		// maxForwardDistance controls how far behind the ball (away from goal) we still consider alignment useful.
+		float maxLateralDistance;
+		float maxForwardDistance;
+
+		AlignBallToOpponentGoalReward(float maxLateralDistance_ = 2000.0f, float maxForwardDistance_ = 6000.0f)
+			: maxLateralDistance(maxLateralDistance_), maxForwardDistance(maxForwardDistance_) {}
+
+		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+			// Need valid ball position
+			Vec ballPos = state.ball.pos;
+
+			// Choose opponent goal (the goal the player should be attacking)
+			Vec opponentGoalBack = (player.team == Team::BLUE) ? CommonValues::ORANGE_GOAL_BACK : CommonValues::BLUE_GOAL_BACK;
+
+			// Direction from ball toward opponent goal
+			Vec ballToGoal = opponentGoalBack - ballPos;
+			float goalDist = ballToGoal.Length();
+			if (goalDist <= 1e-6f) return 0.0f;
+			Vec dirBallToGoal = ballToGoal / goalDist;
+
+			// Vector from ball to player
+			Vec ballToPlayer = player.pos - ballPos;
+
+			// We want the ordering: opponent goal -> ball -> player
+			// That means the player should be on the side of the ball away from the goal.
+			// Use the projection onto the direction away from the goal (-dirBallToGoal).
+			float forwardProjection = ballToPlayer.Dot(-dirBallToGoal); // how far behind the ball (away from goal) the player is
+
+			// Require the player to be behind the ball (relative to goal) and within a reasonable distance
+			if (forwardProjection <= 0.0f) return 0.0f;
+
+			// Lateral distance from the ideal line (ball->away-from-goal)
+			Vec along = (-dirBallToGoal) * forwardProjection;
+			Vec lateralVec = ballToPlayer - along;
+			float lateralDist = lateralVec.Length();
+
+			// Normalize factors
+			float lateralFactor = 1.0f - RS_CLAMP(lateralDist / maxLateralDistance, 0.0f, 1.0f);
+
+			// Reward players that are behind the ball but not too far back.
+			float forwardFactor = 1.0f - RS_CLAMP(forwardProjection / maxForwardDistance, 0.0f, 1.0f);
+
+			// Alignment of player's position relative to the ball->away-from-goal direction (1 = exactly on line)
+			float dirLen = ballToPlayer.Length();
+			float alignment = 0.0f;
+			if (dirLen > 1e-6f) {
+				Vec ballToPlayerDir = ballToPlayer / dirLen;
+				alignment = RS_CLAMP((-dirBallToGoal).Dot(ballToPlayerDir), 0.0f, 1.0f);
+			} else {
+				// If player is essentially on the ball, consider them aligned (but they won't be behind)
+				alignment = 0.0f;
+			}
+
+			// Final reward: combine alignment (angle), lateral proximity and backward positioning
+			float reward = alignment * lateralFactor * forwardFactor;
+
+			return RS_CLAMP(reward, 0.0f, 1.0f);
 		}
 	};
 
@@ -575,6 +735,8 @@ reward = min(air_time_frac, height_frac)
 		}
 	};
 
+	
+
 	class SpeedReward : public Reward {
 	public:
 		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) {
@@ -621,11 +783,86 @@ reward = min(air_time_frac, height_frac)
 		}
 	};
 
+	// Penalizes wasting boost, especially when close to the ground.
+	// Returns a negative value (penalty) proportional to boost used in the last tick
+	// and weighted by proximity to the ground.
+	class BoostWastePenaltyReward : public Reward {
+	public:
+		// scale: maximum penalty magnitude (per full 100 boost used)
+		// groundThreshold: altitude (UU) under which penalties scale linearly to full effect
+		float scale;
+		float groundThreshold;
+
+		BoostWastePenaltyReward(float scale_ = 0.8f, float groundThreshold_ = 500.0f)
+			: scale(scale_), groundThreshold(groundThreshold_) {}
+
+		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+			// Need previous player state to compute boost usage
+			if (!player.prev)
+				return 0.0f;
+
+			float prevBoost = player.prev->boost;
+			float curBoost = player.boost;
+			float used = prevBoost - curBoost; // positive when boost was spent
+			if (used <= 0.0f)
+				return 0.0f;
+
+			// proximity to ground: 1.0 at z=0, 0.0 at or above groundThreshold
+			float h = RS_CLAMP(player.pos.z, 0.0f, groundThreshold);
+			float groundFactor = 1.0f - (h / groundThreshold);
+
+			// Slightly amplify penalty if player is actually on the ground
+			float onGroundBonus = player.isOnGround ? 1.25f : 1.0f;
+
+			float penalty = (used / 100.0f) * scale * groundFactor * onGroundBonus;
+			// Return negative value to act as a penalty
+			return -RS_CLAMP(penalty, 0.0f, scale * 2.0f);
+		}
+	};
+
+	// Simple grounded penalty: small negative reward when the car is on the ground
+	// and its height is below the ball radius (i.e., touching/close to grass).
+	// This mirrors the Python snippet: if player.on_ground and car_height < BALL_RADIUS: penalty.
+	class GroundedPenaltyReward : public Reward {
+	public:
+		// magnitude in [0,1]; returned reward will be a positive value in [0,1]
+		float scale;
+
+		GroundedPenaltyReward(float scale_ = 0.01f) : scale(RS_CLAMP(scale_, 0.0f, 1.0f)) {}
+
+		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+			// reward only when explicitly on ground and car height below ball radius
+			if (player.isOnGround && player.pos.z < CommonValues::BALL_RADIUS) {
+				return RS_CLAMP(scale, 0.0f, 1.0f);
+			}
+			return 0.0f;
+		}
+	};
+
+	// Rewards touching the ball at higher altitudes, scaling with height and wall distance.
+
+	
+
 
 	class AirReward : public Reward {
 	public:
 		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
 			return !player.isOnGround;
+		}
+	};
+
+	// Simple rotation reward: normalized angular velocity while airborne.
+	// Matches the Python snippet: ang_vel_norm = ||ang_vel|| / CAR_MAX_ANG_VEL
+	// The returned value is in [0,1]; apply weighting externally when adding the reward.
+	class RotationReward : public Reward {
+	public:
+		virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+			// Only reward while airborne
+			if (player.isOnGround)
+				return 0.0f;
+
+			float angMag = player.angVel.Length() / CommonValues::CAR_MAX_ANG_VEL;
+			return RS_CLAMP(angMag, 0.0f, 1.0f);
 		}
 	};
 
@@ -679,4 +916,87 @@ reward = min(air_time_frac, height_frac)
 			}
 		}
 	};
+
+
+class HigherWinProbReward : public Reward {
+public:
+    float totalMatchSeconds;
+    float scale;
+    bool continuous; //allows both teams to get reward scaled to to their win prob
+    bool debugPrint;
+    uint64_t lastPrintedTick = (uint64_t)-1;
+
+    HigherWinProbReward(float totalMatchSeconds_ = 300.0f, float scale_ = 1.0f, bool continuous_ = true, bool debugPrint_ = false)
+        : totalMatchSeconds(totalMatchSeconds_), scale(scale_), continuous(continuous_), debugPrint(debugPrint_) {}
+
+private:
+    void CountGoals(const GameState* s, int outGoals[2]) const {
+        outGoals[0] = outGoals[1] = 0;
+        if (!s) return;
+        outGoals[0] = s->score[0];
+        outGoals[1] = s->score[1];
+    }
+
+    float EstimateTimeLeft(const GameState& state) const {
+        if (state.lastArena) {
+            const Arena* a = state.lastArena;
+            float elapsed = 0.0f;
+            if (state.matchTickCount > 0)
+                elapsed = (float)state.matchTickCount * a->tickTime;
+            else {
+                uint64_t startTick = state.matchStartTick ? state.matchStartTick : state.lastTickCount;
+                int64_t elapsedTicks = (int64_t)a->tickCount - (int64_t)startTick;
+                if (elapsedTicks < 0) elapsedTicks = 0;
+                elapsed = (float)elapsedTicks * a->tickTime;
+            }
+            return RS_MAX(0.0f, totalMatchSeconds - elapsed);
+        }
+        return totalMatchSeconds;
+    }
+
+    float Sigmoid(float x) const {
+        return 1.0f / (1.0f + expf(-x));
+    }
+
+    float ComputeWinProb(int teamIndex, const GameState* s) const {
+        int goals[2];
+        CountGoals(s, goals);
+        int scoreDiff = goals[teamIndex] - goals[1 - teamIndex];
+
+        float timeLeft = s ? EstimateTimeLeft(*s) : totalMatchSeconds;
+        float timeFactor = 1.0f - RS_CLAMP(timeLeft / totalMatchSeconds, 0.0f, 1.0f); // increases as match progresses
+		float sensitivity = 0.5f + 3.0f * powf(timeFactor, 2.0f);
+
+        return Sigmoid(sensitivity * (float)scoreDiff);
+    }
+
+public:
+    virtual float GetReward(const Player& player, const GameState& state, bool isFinal) override {
+        if (!state.prev)
+            return 0.0f;
+
+        int teamIndex = (int)player.team;
+        float curWP = ComputeWinProb(teamIndex, &state);
+        float oppWP = ComputeWinProb(1 - teamIndex, &state);
+
+        // if (debugPrint) {
+        //     uint64_t tick = state.lastTickCount;
+        //     if (tick != lastPrintedTick) {
+        //         lastPrintedTick = tick;
+        //         int goalsCur[2]; CountGoals(&state, goalsCur);
+        //         float timeLeft = EstimateTimeLeft(state);
+        //         const char* teamName = (player.team == Team::BLUE) ? "BLUE" : "ORANGE";
+        //         std::printf("[HigherWinProb] tick=%llu team=%s score=%d-%d curWP=%.3f oppWP=%.3f time_left=%.2f\n",
+        //             (unsigned long long)tick, teamName, goalsCur[0], goalsCur[1], curWP, oppWP, timeLeft);
+        //     }
+        // }
+
+        if (continuous)
+            return RS_CLAMP(scale * curWP, 0.0f, scale);
+        else
+            return (curWP > oppWP) ? scale : 0.0f;
+    }
+};
+
+	
 }
