@@ -9,32 +9,13 @@ SET BUILD_DIR=C:\Programming\CPP\GigaLearn2\build
 
 echo Cleaning build directory: %BUILD_DIR%
 
-REM Check if checkpoints exist and ask user
-SET DELETE_CHECKPOINTS=N
-if exist "%BUILD_DIR%\Release\checkpoints" (
-    echo.
-    echo WARNING: Checkpoints folder found at %BUILD_DIR%\Release\checkpoints
-    set /p DELETE_CHECKPOINTS="Delete checkpoint folder? (Y/N): "
-)
+REM Always delete everything including checkpoints
+echo Deleting all contents of build directory (including checkpoints)...
 
-REM Remove all files and folders in build dir, skip locked files and optionally preserve Release/checkpoints
+REM Remove all files and folders in build dir
 for /D %%d in ("%BUILD_DIR%\*") do (
-    if /I "%%~nd"=="Release" (
-        if /I "%DELETE_CHECKPOINTS%"=="Y" (
-            echo Deleting entire Release folder (including checkpoints)
-            rmdir /s /q "%%d" 2>nul
-        ) else (
-            echo Preserving Release folder (keeping checkpoints and python_scripts)
-            REM Only delete build artifacts, not checkpoints or python_scripts
-            if exist "%%d\*.exe" del /f /q "%%d\*.exe" 2>nul
-            if exist "%%d\*.dll" del /f /q "%%d\*.dll" 2>nul
-            if exist "%%d\*.lib" del /f /q "%%d\*.lib" 2>nul
-            if exist "%%d\*.exp" del /f /q "%%d\*.exp" 2>nul
-        )
-    ) else (
-        echo Deleting folder %%d
-        rmdir /s /q "%%d" 2>nul
-    )
+    echo Deleting folder %%d
+    rmdir /s /q "%%d" 2>nul
 )
 
 REM Remove any loose files in the build folder (not directories)
@@ -64,4 +45,3 @@ echo Building project...
 "C:\Program Files\CMake\bin\cmake.exe" --build . --config Release
 
 echo Build complete!
-pause

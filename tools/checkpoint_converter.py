@@ -6,6 +6,12 @@ from collections import OrderedDict, namedtuple
 
 import torch
 
+# Remove if you dont have an rtx nvidea card, or maybe some other types look up if your card supports this
+torch.backends.cuda.matmul.allow_tf32 = True 
+
+torch.backends.cudnn.benchmark = True
+torch.cuda.empty_cache()
+
 from rlgym_ppo.ppo import DiscreteFF, ValueEstimator
 
 def model_info_from_dict(loaded_dict):

@@ -5,7 +5,7 @@
 
 ### Forked version of GigaLearnCPP from ZealanL
 I modified this for my own use, feel free to copy whatever, at this point everything important was written by ZealanL, or 
-copied straight from GigaLearnCCP (whomever wrote that).
+copied straight from GigaLearnCCP (whoever wrote that).
 
 ### This library was intended to be private, but apparently we can't have nice things. 
 
