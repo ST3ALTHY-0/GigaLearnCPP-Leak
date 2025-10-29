@@ -6,6 +6,10 @@
 #include <torch/cuda.h>
 #include <nlohmann/json.hpp>
 #include <pybind11/embed.h>
+#include <thread>
+#include <mutex>
+#include <vector>
+#include <future>
 
 #ifdef RG_CUDA_SUPPORT
 #include <c10/cuda/CUDACachingAllocator.h>
@@ -77,7 +81,7 @@ GGL::Learner::Learner(EnvCreateFn envCreateFn, LearnerConfig config, StepCallbac
 	if (RocketSim::GetStage() != RocketSimStage::INITIALIZED) {
 		RG_LOG("\tInitializing RocketSim...");
 		// Using absolute path because relative wasn't working
-		RocketSim::Init("C:\\Programming\\CPP\\GigaLearn2\\collision_meshes", false);
+		RocketSim::Init(R"(C:\Programming\CPP\GigaLearn2\collision_meshes)", false);
 	}
 
 	{
@@ -378,22 +382,68 @@ void GGL::Learner::StartTransferLearn(const TransferLearnConfig& tlConfig) {
 					allNewObs += envSet->state.obs.data;
 					allNewActionMasks += envSet->state.actionMasks.data;
 
-					// Run all old obs and old action parser on each player
-					// TODO: Could be multithreaded
-					for (int arenaIdx = 0; arenaIdx < envSet->arenas.size(); arenaIdx++) {
-						auto& gs = envSet->state.gameStates[arenaIdx];
-						for (auto& player : gs.players) {
-							allOldObs += oldObsBuilders[arenaIdx]->BuildObs(player, gs);
-							allOldActionMasks += oldActionParsers[arenaIdx]->GetActionMask(player, gs);
 
-							if (tlConfig.mapActsFn) {
-								auto curMap = tlConfig.mapActsFn(player, gs);
-								if (curMap.size() != numActions)
-									RG_ERR_CLOSE("StartTransferLearn: Your action map must have the same size as the new action parser's actions");
-								allActionMaps += curMap;
+
+					// Definitely hits CPU way harder when multithreading
+					// Run all old obs and old action parser on each player
+					std::mutex mergeMutex;
+					std::vector<std::future<void>> futures;
+					unsigned int numThreads = std::thread::hardware_concurrency();
+					
+					// Process arenas in chunks across available threads
+					for (int arenaIdx = 0; arenaIdx < envSet->arenas.size(); arenaIdx++) {
+						auto future = std::async(std::launch::async, [&, arenaIdx]() {
+							auto& gs = envSet->state.gameStates[arenaIdx];
+							auto localOldObs = decltype(allOldObs)();
+							auto localOldActionMasks = decltype(allOldActionMasks)();
+							auto localActionMaps = decltype(allActionMaps)();
+
+							for (auto& player : gs.players) {
+								localOldObs += oldObsBuilders[arenaIdx]->BuildObs(player, gs);
+								localOldActionMasks += oldActionParsers[arenaIdx]->GetActionMask(player, gs);
+
+								if (tlConfig.mapActsFn) {
+									auto curMap = tlConfig.mapActsFn(player, gs);
+									if (curMap.size() != numActions)
+										RG_ERR_CLOSE("StartTransferLearn: Your action map must have the same size as the new action parser's actions");
+									localActionMaps += curMap;
+								}
 							}
-						}
+
+							std::lock_guard<std::mutex> lock(mergeMutex);
+							allOldObs += localOldObs;
+							allOldActionMasks += localOldActionMasks;
+							allActionMaps += localActionMaps;
+						});
+						futures.push_back(std::move(future));
 					}
+
+					// Wait for all tasks to complete
+					for (auto& future : futures) {
+						future.wait();
+					}
+
+					// Single-threaded version
+					// for (int arenaIdx = 0; arenaIdx < envSet->arenas.size(); arenaIdx++) {
+					// 	auto& gs = envSet->state.gameStates[arenaIdx];
+					// 	for (auto& player : gs.players) {
+					// 		allOldObs += oldObsBuilders[arenaIdx]->BuildObs(player, gs);
+					// 		allOldActionMasks += oldActionParsers[arenaIdx]->GetActionMask(player, gs);
+
+					// 		if (tlConfig.mapActsFn) {
+					// 			auto curMap = tlConfig.mapActsFn(player, gs);
+					// 			if (curMap.size() != numActions)
+					// 				RG_ERR_CLOSE("StartTransferLearn: Your action map must have the same size as the new action parser's actions");
+					// 			allActionMaps += curMap;
+					// 		}
+					// 	}
+					// }
+
+
+
+
+
+
 
 					ppo->InferActions(
 						tStates.to(ppo->device, true), tActionMasks.to(ppo->device, true), 
